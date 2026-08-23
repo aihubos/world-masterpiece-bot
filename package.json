@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "check": "node --check public/app.js && node --check public/lounge-auth.js"
   },
   "engines": {
     "node": ">=18"

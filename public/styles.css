@@ -656,6 +656,70 @@ button:disabled {
   color: #92400e;
 }
 
+.build-account-panel {
+  margin-top: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(49, 130, 246, 0.22);
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(239, 247, 255, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+.build-account-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.build-account-label {
+  color: #1b64da;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+}
+
+.build-account-copy strong {
+  color: #000c3d;
+  font-size: 0.98rem;
+}
+
+.build-account-copy small {
+  color: #6b7684;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.build-account-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.build-badge {
+  min-height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #e8f3ff;
+  color: #1b64da;
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.google-signin-slot {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
 .image-control-row {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -835,5 +899,14 @@ button:disabled {
 
   .action-row {
     flex-wrap: wrap;
+  }
+
+  .build-account-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .build-account-actions {
+    justify-content: flex-start;
   }
 }

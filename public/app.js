@@ -820,28 +820,9 @@ const AUTO_BACKGROUND_BY_CATEGORY = {
   pop: "comic-city-day"
 };
 
-const GEMINI_TEXT_MODELS = ["gemini-3-pro-preview", "gemini-3-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
-const GEMINI_IMAGE_MODELS = [
-  "gemini-3-pro-image-preview",
-  "gemini-3-pro-preview",
-  "gemini-3-pro",
-  "gemini-nanobanana-pro",
-  "gemini-2.5-flash-image-preview",
-  "gemini-2.0-flash-preview-image-generation"
-];
-const DEFAULT_PROMPT_MODEL = "gemini-3-pro-preview";
-const DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview";
 const QUALITY_DIRECTIVE =
   "Nanobanana Pro 최고 해상도, ultra high resolution, 8K quality, extreme detail, high fidelity rendering";
 const GENERATED_IMAGE_FILENAME = "nanobanana-generated.png";
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-
-const IMAGE_API_KEY_STORAGE = "nanobanana_google_image_api_key_v3";
-const PROMPT_API_KEY_STORAGE = "nanobanana_google_prompt_api_key_v2";
-const LEGACY_PROMPT_KEY_STORAGE = "nanobanana_google_prompt_api_key";
-const LEGACY_IMAGE_KEY_STORAGE = "nanobanana_google_image_api_key";
-const LEGACY_SHARED_KEY_STORAGE = "nanobanana_google_api_key";
-const LEGACY_GEMINI_PROMPT_KEY_STORAGE = "nanobanana_gemini_prompt_api_key";
 
 const state = {
   selectedCategory: "all",
@@ -882,12 +863,7 @@ const ui = {
   generatedImageStatus: document.getElementById("generated-image-status"),
   generatedImage: document.getElementById("generated-image"),
   downloadImageButton: document.getElementById("download-image-btn"),
-  endpointBadge: document.getElementById("endpoint-badge"),
-  imageModelSelect: document.getElementById("image-model-select"),
-  imageApiKeyInput: document.getElementById("image-api-key-input"),
-  saveImageApiKeyButton: document.getElementById("save-image-api-key"),
-  clearImageApiKeyButton: document.getElementById("clear-image-api-key"),
-  imageApiKeyStatus: document.getElementById("image-api-key-status")
+  endpointBadge: document.getElementById("endpoint-badge")
 };
 
 function uniqueValues(values) {
@@ -1058,10 +1034,6 @@ function setInlineStatus(element, message, tone = "neutral") {
   element.style.color = "#4b5563";
 }
 
-function setImageKeyStatus(message, tone = "neutral") {
-  setInlineStatus(ui.imageApiKeyStatus, message, tone);
-}
-
 function setGeneratedImageStatus(message, tone = "neutral") {
   setInlineStatus(ui.generatedImageStatus, message, tone);
 }
@@ -1161,359 +1133,6 @@ function getReinterpretationProfile(level, language = "en") {
       ? "Preserve composition, subject placement, and palette logic from the source; apply reinterpretation only as controlled accents."
       : "원작의 구도·인물 배치·색채 논리를 보존하고, 재해석은 보조적인 강조 요소로 제한합니다."
   };
-}
-
-function getPromptApiKey() {
-  return "";
-}
-
-function getImageApiKey() {
-  return String(ui.imageApiKeyInput?.value || "").trim();
-}
-
-function isLikelyValidGoogleKey(key) {
-  const trimmed = String(key || "").trim();
-  return /^AIza[0-9A-Za-z_-]{16,}$/.test(trimmed);
-}
-
-function pickValidGoogleKey(candidates) {
-  for (const candidate of candidates) {
-    const value = String(candidate || "").trim();
-    if (isLikelyValidGoogleKey(value)) {
-      return value;
-    }
-  }
-  return "";
-}
-
-async function verifyGeminiApiKey(apiKey) {
-  const models = await fetchGeminiModels(apiKey);
-  if (!models || models.length === 0) {
-    throw new Error("활성화된 Gemini 모델을 찾지 못했습니다.");
-  }
-}
-
-function mapGeminiErrorMessage(message, statusCode) {
-  const raw = String(message || "").trim();
-  const lower = raw.toLowerCase();
-
-  if (statusCode === 400 && lower.includes("invalid argument")) {
-    return "요청 형식이 잘못되었습니다. 앱 로직을 업데이트해야 할 수 있으니 잠시 뒤 재시도해 주세요.";
-  }
-
-  if (lower.includes("api key not valid") || lower.includes("invalid api key")) {
-    return "Gemini API 키가 유효하지 않습니다. Google AI Studio에서 발급한 AIza... 키인지, 키 제한에서 Generative Language API 사용이 허용되어 있는지 확인해 주세요.";
-  }
-
-  if (
-    lower.includes("permission denied") ||
-    lower.includes("not enabled") ||
-    lower.includes("has not been used") ||
-    lower.includes("api_key_service_blocked")
-  ) {
-    return "Gemini API 권한 오류입니다. 해당 키에서 Generative Language API를 활성화하고, 키 제한(HTTP referrer/IP/API 제한)을 확인해 주세요.";
-  }
-
-  if (lower.includes("quota") || lower.includes("rate limit")) {
-    return "Gemini API 할당량/요청 제한에 도달했습니다. 잠시 후 다시 시도하거나 프로젝트 사용량 제한을 확인해 주세요.";
-  }
-
-  return raw || `Gemini 요청 실패 (${statusCode || "unknown"})`;
-}
-
-function normalizeGeminiText(data) {
-  const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
-  for (const candidate of candidates) {
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
-    const text = parts
-      .map((part) => (typeof part?.text === "string" ? part.text : ""))
-      .filter(Boolean)
-      .join("\n")
-      .trim();
-    if (text) {
-      return text;
-    }
-  }
-  return "";
-}
-
-function normalizeGeminiImage(data) {
-  const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
-  for (const candidate of candidates) {
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
-    for (const part of parts) {
-      const inlineData = part?.inlineData || part?.inline_data;
-      if (inlineData?.data) {
-        return {
-          mimeType: inlineData?.mimeType || "image/png",
-          data: String(inlineData.data).trim()
-        };
-      }
-    }
-  }
-
-  return null;
-}
-
-function isModelUnavailableError(status, message) {
-  const lower = String(message || "").toLowerCase();
-  return (
-    status === 404 ||
-    lower.includes("not found") ||
-    lower.includes("not supported") ||
-    lower.includes("unknown model")
-  );
-}
-
-function buildPromptModelCandidates(requestedModel) {
-  return uniqueValues([String(requestedModel || "").trim() || DEFAULT_PROMPT_MODEL, ...GEMINI_TEXT_MODELS]);
-}
-
-function buildImageModelCandidates(requestedModel) {
-  return uniqueValues([String(requestedModel || "").trim() || DEFAULT_IMAGE_MODEL, ...GEMINI_IMAGE_MODELS]);
-}
-
-async function requestGeminiModel(model, payload, apiKey) {
-  const endpoint = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`;
-  const response = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const raw = await response.text();
-  let json = null;
-
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    json = null;
-  }
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    json,
-    model,
-    raw
-  };
-}
-
-async function generatePromptWithGemini(request = {}) {
-  const input =
-    request && typeof request === "object" && request.input && typeof request.input === "object"
-      ? request.input
-      : request;
-  const requestedModel =
-    request && typeof request === "object" && request.input && typeof request.input === "object"
-      ? request.model
-      : request?.model;
-
-  const apiKey = getPromptApiKey();
-  const { systemInstruction, userInstruction } = buildInstruction({
-    language: input?.language || "en",
-    input
-  });
-
-  const payload = {
-    systemInstruction: {
-      parts: [{ text: systemInstruction }]
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: userInstruction }]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.45
-    }
-  };
-
-  const candidates = buildPromptModelCandidates(requestedModel);
-  let lastError = "Gemini 요청 실패";
-
-  for (const candidate of candidates) {
-    const result = await requestGeminiModel(candidate, payload, apiKey);
-    if (result.ok) {
-      const text = normalizeGeminiText(result.json);
-      if (!text) {
-        lastError = "Gemini 응답에서 텍스트를 추출하지 못했습니다.";
-        continue;
-      }
-
-      return {
-        prompt: text,
-        endpoint: `gemini:${candidate}:generateContent`
-      };
-    }
-
-    const message = result.json?.error?.message || `Gemini 요청 실패 (${result.status})`;
-    lastError = mapGeminiErrorMessage(message, result.status);
-    if (!isModelUnavailableError(result.status, message)) {
-      break;
-    }
-  }
-
-  throw new Error(lastError);
-}
-
-async function generateImageWithGemini({ model, prompt, aspectRatio, qualityDirective }) {
-  const apiKey = getImageApiKey();
-
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: [String(prompt || "").trim(), "", `Aspect ratio: ${String(aspectRatio || "3:4")}`, String(qualityDirective || "").trim()].filter(Boolean).join("\n") }]
-      }
-    ],
-    generationConfig: {
-      responseModalities: ["IMAGE", "TEXT"]
-    }
-  };
-
-  const candidates = buildImageModelCandidates(model);
-  let lastError = "이미지 생성 실패";
-
-  for (const candidate of candidates) {
-    const result = await requestGeminiModel(candidate, payload, apiKey);
-    if (!result.ok) {
-      lastError = mapGeminiErrorMessage(
-        result.json?.error?.message || `Gemini 이미지 요청 실패 (${result.status})`,
-        result.status
-      );
-      continue;
-    }
-
-    const image = normalizeGeminiImage(result.json);
-    if (!image?.data) {
-      lastError = "이미지 응답에서 이미지 데이터를 찾지 못했습니다.";
-      continue;
-    }
-
-    return {
-      endpoint: `gemini:${candidate}:generateContent`,
-      model: candidate,
-      imageDataUrl: `data:${image.mimeType};base64,${image.data}`
-    };
-  }
-
-  throw new Error(lastError);
-}
-
-async function fetchGeminiModels(apiKey) {
-  const endpoint = `${GEMINI_API_BASE}/models?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(endpoint);
-  const raw = await response.text();
-  let json = null;
-
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    json = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(mapGeminiErrorMessage(json?.error?.message || `Gemini 모델 조회 실패 (${response.status})`, response.status));
-  }
-
-  const models = Array.isArray(json?.models) ? json.models : [];
-  const available = models
-    .filter((entry) => Array.isArray(entry?.supportedGenerationMethods) && entry.supportedGenerationMethods.includes("generateContent"))
-    .map((entry) => String(entry?.name || "").replace(/^models\//, "").trim())
-    .filter((name) => name.startsWith("gemini-"));
-
-  return uniqueValues(sortGeminiModels(available.filter(Boolean)));
-}
-
-function sortGeminiModels(values) {
-  const rank = new Map(GEMINI_TEXT_MODELS.map((model, index) => [model, index]));
-  return values
-    .filter((name, index, arr) => name && arr.indexOf(name) === index)
-    .sort((a, b) => {
-      const aRank = rank.has(a) ? rank.get(a) : Number.MAX_SAFE_INTEGER;
-      const bRank = rank.has(b) ? rank.get(b) : Number.MAX_SAFE_INTEGER;
-      if (aRank !== bRank) {
-        return aRank - bRank;
-      }
-      return a.localeCompare(b);
-    });
-}
-
-async function saveImageApiKey() {
-  const key = getImageApiKey();
-  if (!key) {
-    setImageKeyStatus("먼저 이미지 생성용 Gemini API 키를 입력해 주세요.", "error");
-    return;
-  }
-
-  if (!isLikelyValidGoogleKey(key)) {
-    setImageKeyStatus("Gemini API 키 형식을 확인해 주세요.", "error");
-    return;
-  }
-
-  setImageKeyStatus("Gemini API 키를 검증 중입니다...");
-
-  try {
-    await verifyGeminiApiKey(key);
-  } catch (error) {
-    const message = error?.message || "Gemini API 키 검증에 실패했습니다.";
-    setImageKeyStatus(message, "error");
-    setStatus(`오류: ${message}`, "error");
-    return;
-  }
-
-  try {
-    localStorage.setItem(IMAGE_API_KEY_STORAGE, key);
-    setImageKeyStatus("이미지 생성용 Gemini API 키를 저장했습니다.", "success");
-    setStatus("이미지 생성용 API 키 저장 완료", "success");
-  } catch {
-    setImageKeyStatus("로컬 저장에 실패했습니다.", "error");
-  }
-}
-
-function clearImageApiKey() {
-  try {
-    localStorage.removeItem(IMAGE_API_KEY_STORAGE);
-    localStorage.removeItem(LEGACY_PROMPT_KEY_STORAGE);
-    localStorage.removeItem(LEGACY_GEMINI_PROMPT_KEY_STORAGE);
-    localStorage.removeItem(LEGACY_IMAGE_KEY_STORAGE);
-    localStorage.removeItem(LEGACY_SHARED_KEY_STORAGE);
-    if (ui.imageApiKeyInput) {
-      ui.imageApiKeyInput.value = "";
-    }
-    setImageKeyStatus("이미지 생성용 Gemini API 키를 삭제했습니다.", "success");
-  } catch {
-    setImageKeyStatus("키 삭제에 실패했습니다.", "error");
-  }
-}
-
-function loadSavedImageApiKey() {
-  try {
-    const key = pickValidGoogleKey([
-      localStorage.getItem(IMAGE_API_KEY_STORAGE),
-      localStorage.getItem(PROMPT_API_KEY_STORAGE),
-      localStorage.getItem(LEGACY_IMAGE_KEY_STORAGE),
-      localStorage.getItem(LEGACY_PROMPT_KEY_STORAGE),
-      localStorage.getItem(LEGACY_GEMINI_PROMPT_KEY_STORAGE),
-      localStorage.getItem(LEGACY_SHARED_KEY_STORAGE)
-    ]);
-
-    if (!key) {
-      localStorage.removeItem(IMAGE_API_KEY_STORAGE);
-      setImageKeyStatus("이미지 생성 API 키는 이 브라우저(localStorage)에만 저장됩니다.");
-      return;
-    }
-
-    localStorage.setItem(IMAGE_API_KEY_STORAGE, key);
-    if (ui.imageApiKeyInput) {
-      ui.imageApiKeyInput.value = key;
-    }
-    setImageKeyStatus("저장된 이미지 생성용 Gemini API 키를 불러왔습니다.", "success");
-  } catch {
-    setImageKeyStatus("로컬 저장소 접근 실패", "error");
-  }
 }
 
 function buildInstruction({ language, input }) {
@@ -1926,20 +1545,6 @@ function initSelectors() {
   renderMasterpieceTrack();
 }
 
-function initImageModelOptions() {
-  if (!ui.imageModelSelect) {
-    return;
-  }
-
-  ui.imageModelSelect.innerHTML = "";
-  GEMINI_IMAGE_MODELS.forEach((modelId) => appendOption(ui.imageModelSelect, modelId, modelId));
-  if (GEMINI_IMAGE_MODELS.includes(DEFAULT_IMAGE_MODEL)) {
-    ui.imageModelSelect.value = DEFAULT_IMAGE_MODEL;
-  } else {
-    ui.imageModelSelect.selectedIndex = 0;
-  }
-}
-
 function resolveBackground(character, selectedBackgroundId, masterpiece) {
   const manualBackground = getManualBackground();
   if (manualBackground) {
@@ -2059,46 +1664,6 @@ function randomizeCombination() {
     }`,
     "success"
   );
-}
-
-async function loadModels() {
-  try {
-    setStatus("Gemini 모델 목록을 불러오는 중입니다...");
-    const apiKey = getPromptApiKey();
-    if (!apiKey) {
-      throw new Error("API 키가 없어 기본 목록으로 표시합니다.");
-    }
-
-    const data = {
-      models: await fetchGeminiModels(apiKey)
-    };
-
-    ui.modelSelect.innerHTML = "";
-
-    data.models.forEach((modelId) => appendOption(ui.modelSelect, modelId, modelId));
-
-    const preferredModel = DEFAULT_PROMPT_MODEL;
-    const hasPreferred = data.models.includes(preferredModel);
-    if (hasPreferred) {
-      ui.modelSelect.value = preferredModel;
-      setStatus(`Gemini 모델 ${data.models.length}개 로드 완료 (기본: ${preferredModel})`, "success");
-    } else {
-      ui.modelSelect.selectedIndex = 0;
-      setStatus(
-        `Gemini 모델 ${data.models.length}개 로드 완료 (${preferredModel} 미지원으로 ${ui.modelSelect.value} 사용)`,
-        "success"
-      );
-    }
-  } catch (error) {
-    ui.modelSelect.innerHTML = "";
-    GEMINI_TEXT_MODELS.forEach((modelId) => appendOption(ui.modelSelect, modelId, modelId));
-    if (GEMINI_TEXT_MODELS.includes(DEFAULT_PROMPT_MODEL)) {
-      ui.modelSelect.value = DEFAULT_PROMPT_MODEL;
-    } else {
-      ui.modelSelect.selectedIndex = 0;
-    }
-    setStatus(`Gemini 모델 조회 실패: ${error.message} (기본 목록 사용)`, "error");
-  }
 }
 
 function collectPayload() {
@@ -2361,13 +1926,11 @@ function renderGeneratedImage(dataUrl) {
   }
 }
 
-async function requestImageGeneration({ imageApiKey, imageModel, prompt, aspectRatio, qualityDirective }) {
-  return generateImageWithGemini({
-    model: imageModel || DEFAULT_IMAGE_MODEL,
-    prompt,
-    aspectRatio,
-    qualityDirective
-  });
+async function requestImageGeneration({ prompt, aspectRatio, qualityDirective }) {
+  if (!window.BuildersLoungeAuth?.generateImage) {
+    throw new Error("Builders Lounge 계정 모듈을 불러오지 못했습니다.");
+  }
+  return window.BuildersLoungeAuth.generateImage({ prompt, aspectRatio, qualityDirective });
 }
 
 function getImagePrompt() {
@@ -2382,36 +1945,21 @@ async function generateImageFromPrompt() {
     return;
   }
 
-  const imageApiKey = getImageApiKey();
-  if (!imageApiKey) {
-    setStatus("Gemini API 키를 먼저 입력해 주세요.", "error");
-    setImageKeyStatus("Gemini API 키가 비어 있습니다.", "error");
-    return;
-  }
-
-  if (!isLikelyValidGoogleKey(imageApiKey)) {
-    setStatus("Gemini API 키 형식을 확인해 주세요. (AIza...)", "error");
-    setImageKeyStatus("Gemini API 키 형식 오류", "error");
-    return;
-  }
-
   setImageBusy(true);
   resetGeneratedImageView();
-  setGeneratedImageStatus(`${sourceLabel} 기준 이미지 생성 중...`);
+  setGeneratedImageStatus(`${sourceLabel} 기준 이미지를 생성하고 있습니다. 성공한 요청에만 빌드가 사용됩니다.`);
 
   try {
     const data = await requestImageGeneration({
-      imageApiKey,
-      imageModel: ui.imageModelSelect?.value || DEFAULT_IMAGE_MODEL,
       prompt,
       aspectRatio: ui.aspectRatioSelect.value,
       qualityDirective: QUALITY_DIRECTIVE
     });
 
     renderGeneratedImage(data.imageDataUrl);
-    ui.endpointBadge.textContent = `API: ${data.endpoint}`;
-    setGeneratedImageStatus(`이미지 생성 완료 (${data.model})`, "success");
-    setStatus(`${sourceLabel} 기준 이미지 생성 완료`, "success");
+    ui.endpointBadge.textContent = "API: Builders Lounge";
+    setGeneratedImageStatus(`이미지 생성 완료 · 현재 ${Number(data.balance || 0).toLocaleString("ko-KR")}빌드`, "success");
+    setStatus(`${sourceLabel} 기준 이미지 생성 완료 (${data.model})`, "success");
   } catch (error) {
     setGeneratedImageStatus(`오류: ${error.message}`, "error");
     setStatus(`이미지 생성 오류: ${error.message}`, "error");
@@ -2424,8 +1972,6 @@ function bindEvents() {
   ui.form.addEventListener("submit", generatePrompt);
   ui.generateImageRawButton?.addEventListener("click", generateImageFromPrompt);
   ui.copyRawButton?.addEventListener("click", copyRawPrompt);
-  ui.saveImageApiKeyButton?.addEventListener("click", saveImageApiKey);
-  ui.clearImageApiKeyButton?.addEventListener("click", clearImageApiKey);
   ui.randomizeButton.addEventListener("click", randomizeCombination);
 
   ui.masterpieceSelect.addEventListener("change", () => {
@@ -2458,14 +2004,12 @@ function bindEvents() {
 
 function initialize() {
   initSelectors();
-  initImageModelOptions();
-  loadSavedImageApiKey();
   bindEvents();
   syncSelectedMasterpieceCard(false);
   refreshAutoPlan();
   updateReinterpretationUI(ui.reinterpretationInput.value);
   setImageBusy(false);
-  setGeneratedImageStatus("프롬프트로 이미지를 생성할 수 있습니다. (이미지 모델 기본: gemini-3-pro-image-preview)");
+  setGeneratedImageStatus("Google 로그인 후 빌드 포인트로 이미지를 생성할 수 있습니다.");
   setStatus("선택값 기반 로컬 프롬프트 생성 준비 완료");
 }
 
