@@ -71,7 +71,14 @@
     const headers = new Headers(options.headers || {});
     if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     if (state.credential) headers.set("Authorization", `Bearer ${state.credential}`);
-    const response = await fetch(API_BASE + path, { cache: "no-store", ...options, headers });
+    let response;
+    try {
+      response = await fetch(API_BASE + path, { cache: "no-store", ...options, headers });
+    } catch {
+      const error = new Error("서버에 연결하지 못했습니다. 관리자가 OpenRouter 주소와 키를 저장했는지 확인해 주세요.");
+      error.code = "network_error";
+      throw error;
+    }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 401) logout(false);
