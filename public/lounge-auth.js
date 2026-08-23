@@ -75,7 +75,7 @@
     try {
       response = await fetch(API_BASE + path, { cache: "no-store", ...options, headers });
     } catch {
-      const error = new Error("서버에 연결하지 못했습니다. 관리자가 OpenRouter 주소와 키를 저장했는지 확인해 주세요.");
+      const error = new Error("생성 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도하거나, 관리자 설정에서 연결 방식을 OpenRouter로 저장해 주세요.");
       error.code = "network_error";
       throw error;
     }
