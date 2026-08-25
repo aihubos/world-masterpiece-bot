@@ -75,7 +75,7 @@
     try {
       response = await fetch(API_BASE + path, { cache: "no-store", ...options, headers });
     } catch {
-      const error = new Error("생성 서버와 연결이 끊어졌습니다. 잠시 후 다시 시도하거나, 관리자 설정에서 연결 방식을 OpenRouter로 저장해 주세요.");
+      const error = new Error("생성 서버와 연결이 끊어졌습니다. 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.");
       error.code = "network_error";
       throw error;
     }
@@ -178,7 +178,7 @@
     if (!imageDataUrl) throw new Error(MESSAGES.empty_provider_response);
     return {
       imageDataUrl,
-      model: state.tool?.model || "관리자 설정 모델",
+      model: String(body.result?.model || state.tool?.model || "관리자 설정 모델"),
       endpoint: "builders-lounge",
       balance
     };
